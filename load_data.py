@@ -10,41 +10,6 @@ from fastNLP import cache_results
 from fastNLP_module import StaticEmbedding
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 @cache_results(_cache_fp='cache/ontonotes4ner',_refresh=False)
 def load_ontonotes4ner(path,char_embedding_path=None,bigram_embedding_path=None,index_token=True,train_clip=False,
                        char_min_freq=1,bigram_min_freq=1,only_train_min_freq=0):
@@ -135,14 +100,17 @@ def load_resume_ner(path,char_embedding_path=None,bigram_embedding_path=None,ind
 
 
     datasets = dict()
+
+    datasets['test'] = test_bundle.datasets['train']
     datasets['train'] = train_bundle.datasets['train']
     datasets['dev'] = dev_bundle.datasets['train']
-    datasets['test'] = test_bundle.datasets['train']
-
-
-    datasets['train'].apply_field(get_bigrams,field_name='chars',new_field_name='bigrams')
+    
+    print(datasets)
+    # 作用？
+    # apply_field()
     datasets['dev'].apply_field(get_bigrams, field_name='chars', new_field_name='bigrams')
     datasets['test'].apply_field(get_bigrams, field_name='chars', new_field_name='bigrams')
+    datasets['train'].apply_field(get_bigrams,field_name='chars',new_field_name='bigrams')
 
     datasets['train'].add_seq_len('chars')
     datasets['dev'].add_seq_len('chars')
@@ -462,19 +430,14 @@ def load_msra_ner_1(path,char_embedding_path=None,bigram_embedding_path=None,ind
     return datasets,vocabs,embeddings
 
 
-@cache_results(_cache_fp='cache/weiboNER_uni+bi', _refresh=False)
+# 如果加了@cache_results 这个参数，那么在debug 的时候，可能是不会进到这个函数中
+#@cache_results(_cache_fp='cache/weiboNER_uni+bi', _refresh=False)
 def load_weibo_ner(path,unigram_embedding_path=None,bigram_embedding_path=None,index_token=True,
                    char_min_freq=1,bigram_min_freq=1,only_train_min_freq=0,char_word_dropout=0.01):
     from fastNLP.io.loader import ConllLoader
     from utils import get_bigrams
 
     loader = ConllLoader(['chars','target'])
-    # bundle = loader.load(path)
-    #
-    # datasets = bundle.datasets
-
-    # print(datasets['train'][:5])
-
     train_path = os.path.join(path,'weiboNER_2nd_conll.train_deseg')
     dev_path = os.path.join(path, 'weiboNER_2nd_conll.dev_deseg')
     test_path = os.path.join(path, 'weiboNER_2nd_conll.test_deseg')
@@ -484,13 +447,34 @@ def load_weibo_ner(path,unigram_embedding_path=None,bigram_embedding_path=None,i
     paths['dev'] = dev_path
     paths['test'] = test_path
 
-    datasets = {}
+    datasets = {}  # 字典！！！
 
     for k,v in paths.items():
         bundle = loader.load(v)
         datasets[k] = bundle.datasets['train']
-
-
+    
+    trainData = datasets['train']
+    
+    print(type(trainData))  # <class 'fastNLP.core.dataset.DataSet'>
+    print(len(trainData))   # 1350
+    print(trainData)
+    """ datasets['train'] 中的数据长成下面这样，
+        +-----------------------------------------------------------+-----------------------------------------------------------+
+        | chars                                                     | target                                                    |
+        +-----------------------------------------------------------+-----------------------------------------------------------+
+        | ['科', '技', '全', '方', '位', '资', '讯', '智', '能',...  | ['O', 'O', 'O', 'O', 'O', 'O', 'O', 'O', 'O', 'O', 'O'... |
+        | ['对', '，', '输', '给', '一', '个', '女', '人', '，',...  | ['O', 'O', 'O', 'O', 'O', 'O', 'B-PER.NOM', 'I-PER.NOM... |
+        | ['今', '天', '下', '午', '起', '来', '看', '到', '外',...  | ['O', 'O', 'O', 'O', 'O', 'O', 'O', 'O', 'O', 'O', 'O'... |
+        | ['今', '年', '拜', '年', '不', '短', '信', '，', '就',...  | ['O', 'O', 'O', 'O', 'O', 'O', 'O', 'O', 'O', 'O', 'O'... |
+        | ['浑', '身', '酸', '疼', '，', '两', '腿', '无', '力',...  | ['O', 'O', 'O', 'O', 'O', 'O', 'O', 'O', 'O', 'O', 'O'... |
+        | ['明', '显', '紧', '张', '状', '态', '没', '出', '来',...  | ['O', 'O', 'O', 'O', 'O', 'O', 'O', 'O', 'O', 'O', 'O'... |
+        | ['三', '十', '年', '前', '，', '老', '爹', '带', '我',...  | ['O', 'O', 'O', 'O', 'O', 'B-PER.NOM', 'I-PER.NOM', 'O... |
+        | ['好', '活', '动', '呀', '，', '给', '力', '的', '商',...  | ['O', 'O', 'O', 'O', 'O', 'O', 'O', 'O', 'O', 'O', 'O'... |
+        | ['人', '生', '如', '戏', '，', '导', '演', '是', '自',...  | ['O', 'O', 'O', 'O', 'O', 'B-PER.NOM', 'I-PER.NOM', 'O... |
+        | ['听', '说', '小', '米', '开', '卖', '了', '，', '刚',...  | ['O', 'O', 'O', 'O', 'O', 'O', 'O', 'O', 'O', 'O', 'O'... |
+        | ...                                                       | ...                                                       |
+        +-----------------------------------------------------------+-----------------------------------------------------------+
+    """
 
     for k,v in datasets.items():
         print('{}:{}'.format(k,len(v)))
@@ -500,12 +484,20 @@ def load_weibo_ner(path,unigram_embedding_path=None,bigram_embedding_path=None,i
     bigram_vocab = Vocabulary()
     label_vocab = Vocabulary()
 
-    for k,v in datasets.items():
+    cnt = 0 # datasets 就3个键值对，分别是 train:[] , dev:[], test:[], 
+    for item in datasets.items():
+        if cnt < 100:
+            print(item)
+            cnt += 1
+        else: 
+            break
+
+    for k,v in datasets.items():  # 处理键值对
         # ignore the word segmentation tag
         v.apply_field(lambda x: [w[0] for w in x],'chars','chars')
-        v.apply_field(get_bigrams,'chars','bigrams')
+        v.apply_field(get_bigrams,'chars','bigrams')  # 感觉这里的效果就是将连续的两个字拼在一起，也就是所谓的 bigrams 
 
-
+    
     char_vocab.from_dataset(datasets['train'],field_name='chars',no_create_entry_dataset=[datasets['dev'],datasets['test']])
     label_vocab.from_dataset(datasets['train'],field_name='target')
     print('label_vocab:{}\n{}'.format(len(label_vocab),label_vocab.idx2word))

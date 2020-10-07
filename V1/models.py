@@ -222,7 +222,11 @@ class Absolute_Position_Embedding(nn.Module):
         return emb
 
 
-
+'''
+description: 这个类是最重要的类
+param {type} 
+return {type} 
+'''
 class Lattice_Transformer_SeqLabel(nn.Module):
     def __init__(self,lattice_embed, bigram_embed, hidden_size, label_size,
                  num_heads, num_layers,
@@ -275,7 +279,6 @@ class Lattice_Transformer_SeqLabel(nn.Module):
         self.rel_pos_init = rel_pos_init
         self.embed_dropout_pos = embed_dropout_pos
 
-
         # if self.relative_position:
         #     print('现在还不支持相对编码！')
         #     exit(1208)
@@ -326,11 +329,6 @@ class Lattice_Transformer_SeqLabel(nn.Module):
             self.pe_es = None
             self.pe_ee = None
 
-
-
-
-
-
         # if self.add_position:
         #     print('现在还不支持位置编码通过concat的方式加入')
         #     exit(1208)
@@ -360,13 +358,10 @@ class Lattice_Transformer_SeqLabel(nn.Module):
             self.char_input_size+=self.bert_embedding._embed_size
 
         self.lex_input_size = self.lattice_embed.embedding.weight.size(1)
-
         self.embed_dropout = MyDropout(self.dropout['embed'])
         self.gaz_dropout = MyDropout(self.dropout['gaz'])
-
         self.char_proj = nn.Linear(self.char_input_size,self.hidden_size)
         self.lex_proj = nn.Linear(self.lex_input_size,self.hidden_size)
-
         self.encoder = Transformer_Encoder(self.hidden_size,self.num_heads,self.num_layers,
                                            relative_position=self.use_rel_pos,
                                            learnable_position=self.learnable_position,
@@ -451,13 +446,9 @@ class Lattice_Transformer_SeqLabel(nn.Module):
 
         # print('raw_embed_char_dp:{}'.format(raw_embed_char[:1,:3,-5:]))
 
-
-
         embed_char = self.char_proj(raw_embed_char)
         # print('char_proj:',list(self.char_proj.parameters())[0].data[:2][:2])
         # print('embed_char_:{}'.format(embed_char[:1,:3,:4]))
-
-
 
         if self.mode['debug']:
             print('embed_char:{}'.format(embed_char[:2]))
@@ -478,9 +469,6 @@ class Lattice_Transformer_SeqLabel(nn.Module):
         assert char_mask.size(1) == lex_mask.size(1)
         # print('embed_char:{}'.format(embed_char[:1,:3,:4]))
         # print('embed_lex:{}'.format(embed_lex[:1,:3,:4]))
-
-
-
 
         embedding = embed_char + embed_lex
         if self.mode['debug']:
