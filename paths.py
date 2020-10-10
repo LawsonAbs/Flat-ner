@@ -1,7 +1,7 @@
 '''
 Modify: LawsonAbs
 Date: 2020-10-06 20:25:50
-LastEditTime: 2020-10-06 21:39:08
+LastEditTime: 2020-10-08 16:04:06
 FilePath: /Flat-Lattice-Transformer/paths.py
 '''
 
@@ -17,3 +17,4 @@ ontonote4ner_cn_path = '/home/liushen/program/Flat-Lattice-Transformer/data/corp
 msra_ner_cn_path = '/home/liushen/program/Flat-Lattice-Transformer/data/corpus/MSRANER'
 resume_ner_path = '/home/liushen/program/Flat-Lattice-Transformer/data/corpus/ResumeNER'
 weibo_ner_path = '/home/liushen/program/Flat-Lattice-Transformer/data/corpus/WeiboNER'
+tianchi_ner_path = '/home/liushen/program/Flat-Lattice-Transformer/data/corpus/TianChiNER'

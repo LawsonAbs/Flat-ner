@@ -1,3 +1,5 @@
+import re
+from torch.jit import annotations
 import torch.nn.functional as F
 import torch
 import random
@@ -437,16 +439,72 @@ def size2MB(size_,type_size=4):
     num = 1
     for s in size_:
         num*=s
-
     return num * type_size /1000 /1000
 
+
+
+
+'''
+description: 修改数据集的格式，从而能够让FLAT 可以加载
+param {type} : readFileName 为待读的文件， writeFileName 为写入的文件
+return {type} 
+'''
+def convertFile(readFileName,writeFileName):    
+    # [0,800) train
+    # [800,1000) dev
+    if os.path.exists(writeFileName): # 如果文件存在，则删除
+        os.remove(writeFileName)
+
+    for i in range(900,1000): 
+        txtFilePath = readFileName + str(i) + ".txt"
+        annFilePath = readFileName + str(i) + ".ann"
+        with open(txtFilePath,'r') as f:
+            conte = f.readlines() # 读取所有的内容            
+        
+        # 读取标注文件
+        with open(annFilePath,'r') as f:
+            annotation = f.readlines()
+
+        # curLabel
+        # conte 就是一个大小为1的list，里面是string 
+        text = conte[0]
+        curLabel = ['O' for i in range(0,len(text))]
+        for row in annotation:
+            row = row.strip('\n')
+            line = re.split('[\t ]',row)
+            tag, left, right = line[1:4] 
+            left = int(left)
+            right = int(right)
+            # print(left,right,end="")
+            curLabel[left] = "B-" + tag  # begin
+            for index in range(left+1,right):
+                curLabel[index] = 'I-' + tag
+        
+        
+        with open(writeFileName,'a') as f:             
+            for i in range(0,len(text)):
+                if text[i] == ' ' or text[i] =='\t' or text[i] == '　': # 这里直接忽略空格，tab键的标注，表意空格
+                    continue
+                # print(i,text[i],curLabel[i])                
+                f.write(text[i]+' '+curLabel[i]+'\n') # 写入到文件中
+                if text[i] == '。': # 如果是个句号，就换行输出
+                    f.write("\n") # 写一个换行
+            f.write("\n") # 写完一个文件换行 
+
+
+def readFile(fileName):
+    with open(fileName,'r') as f:
+        cont = f.readlines()
+        text = cont[0]
+        for word in text:
+            if word == '　':
+                continue
+            print(word)
+
+
+
 if __name__ == '__main__':
-    a = get_peking_time()
-    print(a)
-    print(type(a))
-
-
-
-
-
-
+    readFileName = '/home/liushen/program/Flat-Lattice-Transformer/data/corpus/TianChiNER/train/'
+    writeFileName = "/home/liushen/program/Flat-Lattice-Transformer/data/corpus/TianChiNER/tianchi.test"
+    convertFile(readFileName,writeFileName)
+    #readFile(readFileName)

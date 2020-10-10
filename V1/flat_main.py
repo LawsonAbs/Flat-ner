@@ -1,3 +1,5 @@
+import datetime as dt
+from fastNLP.core.tester import Tester
 import fitlog
 use_fitlog = True
 if not use_fitlog:
@@ -73,10 +75,11 @@ parser.add_argument('--word_min_freq',default=1,type=int)
 
 # hyper of training
 parser.add_argument('--early_stop',default=25,type=int)
-parser.add_argument('--epoch', default=40, type=int) 
+parser.add_argument('--epoch', default=200, type=int) 
 parser.add_argument('--batch', default=10, type=int)
 parser.add_argument('--optim', default='sgd', help='sgd|adam')
-parser.add_argument('--lr', default=6e-4, type=float)
+#parser.add_argument('--lr', default=6e-4, type=float)
+parser.add_argument('--lr', default=6e-3, type=float)
 parser.add_argument('--bert_lr_rate',default=0.05,type=float)
 parser.add_argument('--embed_lr_rate',default=1,type=float)
 parser.add_argument('--momentum', default=0.9)
@@ -222,13 +225,25 @@ elif args.dataset == 'weibo':
     datasets,vocabs,embeddings = load_weibo_ner(weibo_ner_path,
                                                 yangjie_rich_pretrain_unigram_path,
                                                 yangjie_rich_pretrain_bigram_path,
-                                                #_refresh=refresh_data,
-                                                #_cache_fp=raw_dataset_cache_name,
+                                                _refresh=refresh_data,
+                                                _cache_fp=raw_dataset_cache_name,
                                                 index_token=False,                                                
                                                 char_min_freq=args.char_min_freq,
                                                 bigram_min_freq=args.bigram_min_freq,
                                                 only_train_min_freq=args.only_train_min_freq
                                                     )
+# 添加天池的数据集
+elif args.dataset == 'tianchi':
+    datasets,vocabs,embeddings = load_tianchi_ner(tianchi_ner_path, # 文本数据集
+                                                yangjie_rich_pretrain_unigram_path, # 这是两个预训练好的结果
+                                                yangjie_rich_pretrain_bigram_path,
+                                                #_refresh=refresh_data, # 下面两行是关于cache 的参数
+                                                #_cache_fp=raw_dataset_cache_name,
+                                                index_token=False,               
+                                                char_min_freq=args.char_min_freq,
+                                                bigram_min_freq=args.bigram_min_freq,
+                                                only_train_min_freq=args.only_train_min_freq
+                                                )                                                    
 
 if args.gaz_dropout < 0:
     args.gaz_dropout = args.embed_dropout
@@ -251,7 +266,8 @@ print('用的词表的路径:{}'.format(yangjie_rich_pretrain_word_path))
 
 w_list = load_yangjie_rich_pretrain_word_list(yangjie_rich_pretrain_word_path,
                                               _refresh=refresh_data,
-                                              _cache_fp='cache/{}'.format(args.lexicon_name))
+                                              _cache_fp='cache/{}'.format(args.lexicon_name)
+                                              )
 
 cache_name = os.path.join('cache',(args.dataset+'_lattice'+'_only_train:{}'+
                           '_trainClip:{}'+'_norm_num:{}'
@@ -264,8 +280,8 @@ cache_name = os.path.join('cache',(args.dataset+'_lattice'+'_only_train:{}'+
                                   
 datasets,vocabs,embeddings = equip_chinese_ner_with_lexicon(datasets,vocabs,embeddings,
                                                             w_list,yangjie_rich_pretrain_word_path,
-                                                         _refresh=refresh_data,_cache_fp=cache_name,
-                                                         only_lexicon_in_train=args.only_lexicon_in_train,
+                                                            _refresh=refresh_data,_cache_fp=cache_name,
+                                                            only_lexicon_in_train=args.only_lexicon_in_train,
                                                             word_char_mix_embedding_path=yangjie_rich_pretrain_char_and_word_path,
                                                             number_normalized=args.number_normalized,
                                                             lattice_min_freq=args.lattice_min_freq,
@@ -300,7 +316,7 @@ for k,v in datasets.items():
         if k == 'train':
             train_seq_lex.append(v[i]['lex_num']+v[i]['seq_len'])
             train_seq.append(v[i]['seq_len'])
-            if v[i]['seq_len'] >200:
+            if v[i]['seq_len'] >200: # 
                 print('train里这个句子char长度已经超了200了')
                 print(''.join(list(map(lambda x:vocabs['char'].to_word(x),v[i]['chars']))))
             else:
@@ -327,6 +343,7 @@ import copy
 max_seq_len = max(* map(lambda x:max(x['seq_len']),datasets.values()))
 
 show_index = 4
+# 程序在下面的代码中出现问题
 print('raw_chars:{}'.format(list(datasets['train'][show_index]['raw_chars'])))
 print('lexicons:{}'.format(list(datasets['train'][show_index]['lexicons'])))
 print('lattice:{}'.format(list(datasets['train'][show_index]['lattice'])))
@@ -339,12 +356,7 @@ print('pos_e:{}'.format(list(datasets['train'][show_index]['pos_e'])))
 
 # exit(1208)
 
-for k, v in datasets.items():
-    # v.apply_field(lambda x:x,'chars',new_field_name='chars_target')
-    # v.set_pad_val('chars_target',pad_val=-100)
-    # print_info(v[0])
-    # v.set_input('chars_target')
-    # v.set_target('chars_target')
+for k, v in datasets.items():    
     if args.lattice:
         v.set_input('lattice','bigrams','seq_len','target')
         v.set_input('lex_num','pos_s','pos_e')
@@ -369,15 +381,6 @@ if args.norm_lattice_embed>0:
     for k,v in embeddings.items():
         norm_static_embedding(v,args.norm_embed)
 
-
-# if args.norm_gaz_embed>0:
-#     print('embedding:{}'.format(embeddings['char'].embedding.weight.size()))
-#     print('norm embedding')
-#     for k,v in embeddings.items():
-#         norm_static_embedding(v,args.norm_embed)
-
-# print(embeddings['char'].embedding.weight[:10])
-# exit(1208)
 mode = {}
 mode['debug'] = args.debug
 mode['gpumm'] = args.gpumm
@@ -399,17 +402,12 @@ torch.backends.cudnn.benchmark = False
 
 
 fitlog.add_hyper(args)
-
-
-with torch.no_grad():
-    pass
-    # a = StaticEmbedding(22,2,2,2)
-    # a.embedding.weight.set_(a.weight*2)
     
 
 if args.model == 'transformer':
     if args.lattice:
         if args.use_bert:
+            # BertEmbedding in fastNLP
             bert_embedding = BertEmbedding(vocabs['lattice'],model_dir_or_name='cn-wwm',requires_grad=False,
                                            word_dropout=0.01)
         else:
@@ -439,7 +437,7 @@ if args.model == 'transformer':
                                          four_pos_fusion=args.four_pos_fusion,
                                          four_pos_fusion_shared=args.four_pos_fusion_shared,
                                          bert_embedding=bert_embedding
-                                         )
+                                        )
     else: # 不使用lattice 
         model = Transformer_SeqLabel(embeddings['lattice'], embeddings['bigram'], args.hidden, len(vocabs['label']),
                                      args.head, args.layer, args.use_abs_pos,args.use_rel_pos,
@@ -471,17 +469,6 @@ elif args.model =='lstm':
 for n,p in model.named_parameters():
     print('{}:{}'.format(n,p.size()))
 
-# exit(1208)
-
-# for k,v in model.state_dict().items():
-#     # print(k,v)
-#     print('{}:{}'.format(k,v.size()))
-# exit(1208)
-# for mod in model.modules():
-#     print(mod)
-
-# print('的:{}'.format(embeddings['char'](vocabs['char'].to_index('的'))))
-# print('output layer:{}'.format(model.output.weight))
 
 # print('这次让pytorch默认初始化transformer')
 with torch.no_grad():
@@ -504,6 +491,8 @@ with torch.no_grad():
 loss = LossInForward()
 encoding_type = 'bmeso'
 if args.dataset == 'weibo':
+    encoding_type = 'bio'
+if args.dataset == 'tianchi':
     encoding_type = 'bio'
 f1_metric = SpanFPreRecMetric(vocabs['label'],pred='pred',target='target',seq_len='seq_len',encoding_type=encoding_type)
 acc_metric = AccuracyMetric(pred='pred',target='target',seq_len='seq_len',)
@@ -605,7 +594,7 @@ class Unfreeze_Callback(Callback):
 
 
 callbacks = [
-        evaluate_callback,
+        evaluate_callback,   # 好奇evaluate_callback的值是
         lrschedule_callback,
         clip_callback
     ]
@@ -632,16 +621,33 @@ print(torch.rand(size=[3,3],device=device))
 
 
 
-if args.status == 'train':
-    print(datasets['train'])
+if args.status == 'train':        
+    # 如果觉得dataset['train'] 较大，可以执行如下操作删除其 instance
+    # for i in range(len(datasets['train'])-1,2,-1):
+    #     datasets['train'].delete_instance(i)
+    #print(datasets['train'])
     '''
-    上面这个数据集的格式，我重新搞一个文件
+    上面这个数据集的格式，我将其写入到了一个文件中，文件地址是： V1/train_exam.txt
     '''
     trainer = Trainer(datasets['train'],model,optimizer,loss,args.batch,
                       n_epochs=args.epoch,
                       dev_data=datasets['dev'],
                       metrics=metrics,
-                      device=device,callbacks=callbacks,dev_batch_size=args.test_batch,
-                      test_use_tqdm=False,check_code_level=-1,
-                      update_every=args.update_every)
+                      device=device,
+                      callbacks=callbacks,
+                      dev_batch_size=args.test_batch,
+                      test_use_tqdm=False,
+                      check_code_level=-1,
+                      update_every=args.update_every,
+                      save_path="./model") # 保存模型
     trainer.train()
+
+
+if args.status == 'test': # 如果是做测试 
+    # 因为这里使用的是fastNLP ，故加载模型的方法有些区别。直接load就可以了   
+    model = torch.load("/home/liushen/program/Flat-Lattice-Transformer/V1/model/best_Lattice_Transformer_SeqLabel_f_2020-10-09-17-59-43") # 加载训练好的模型
+    tester = Tester(datasets['test'],model,
+                      metrics=metrics,
+                      device=device)
+    res = tester.test()
+    print(res)

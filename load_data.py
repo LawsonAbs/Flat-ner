@@ -252,9 +252,6 @@ def equip_chinese_ner_with_skip(datasets,vocabs,embeddings,w_list,word_embedding
                       'skips_r2l_word',new_field_name='skips_r2l_word')
 
 
-
-
-
     if word_embedding_path is not None:
         word_embedding = StaticEmbedding(word_vocab,word_embedding_path,word_dropout=0)
         embeddings['word'] = word_embedding
@@ -267,7 +264,6 @@ def equip_chinese_ner_with_skip(datasets,vocabs,embeddings,w_list,word_embedding
                               field_name='target', new_field_name='target')
 
     return datasets,vocabs,embeddings
-
 
 
 @cache_results(_cache_fp='cache/load_yangjie_rich_pretrain_word_list',_refresh=False)
@@ -284,10 +280,6 @@ def load_yangjie_rich_pretrain_word_list(embedding_path,drop_characters=True):
         w_list = list(filter(lambda x:len(x) != 1, w_list))
 
     return w_list
-
-
-
-
 
 
 @cache_results(_cache_fp='cache/ontonotes4ner',_refresh=False)
@@ -357,7 +349,6 @@ def load_toy_ner(path,char_embedding_path=None,bigram_embedding_path=None,index_
         embeddings['bigram'] = bigram_embedding
 
     return datasets,vocabs,embeddings
-
 
 
 @cache_results(_cache_fp='cache/msraner1',_refresh=False)
@@ -430,13 +421,23 @@ def load_msra_ner_1(path,char_embedding_path=None,bigram_embedding_path=None,ind
     return datasets,vocabs,embeddings
 
 
-# 如果加了@cache_results 这个参数，那么在debug 的时候，可能是不会进到这个函数中
-#@cache_results(_cache_fp='cache/weiboNER_uni+bi', _refresh=False)
+'''
+description: 
+1.这个方法就三个作用：
+01.构建dataset
+02.构建vocab
+03.构建embedding 
+在构建的时候使用到了fastNLP 中很多函数和类，所以需要先行学习一下这个库的使用。
+
+2.如果加了@cache_results 这个参数，那么在debug 的时候，可能是不会进到这个函数中，而是直接利用cache中的数据了
+'''
+@cache_results(_cache_fp='cache/weiboNER_uni+bi', _refresh=False)
 def load_weibo_ner(path,unigram_embedding_path=None,bigram_embedding_path=None,index_token=True,
                    char_min_freq=1,bigram_min_freq=1,only_train_min_freq=0,char_word_dropout=0.01):
     from fastNLP.io.loader import ConllLoader
     from utils import get_bigrams
-
+    
+    # step0.=============================准备数据，诸如数据地址等
     loader = ConllLoader(['chars','target'])
     train_path = os.path.join(path,'weiboNER_2nd_conll.train_deseg')
     dev_path = os.path.join(path, 'weiboNER_2nd_conll.dev_deseg')
@@ -447,18 +448,20 @@ def load_weibo_ner(path,unigram_embedding_path=None,bigram_embedding_path=None,i
     paths['dev'] = dev_path
     paths['test'] = test_path
 
-    datasets = {}  # 字典！！！
-
+    # step1.=============================构建datasets
+    datasets = {}  # 字典！！！ 但是需要注意的是：datasets 中的每一项都是一个 DataSet 类的实例
     for k,v in paths.items():
         bundle = loader.load(v)
-        datasets[k] = bundle.datasets['train']
+        # 固定的 train 为参数，是因为bundle 这个实例的设置，它是把数据都放到 train 这个里面了
+        datasets[k] = bundle.datasets['train']  # 这里有点儿疑问，为什么是固定的 'train' 作为参数？
     
     trainData = datasets['train']
     
     print(type(trainData))  # <class 'fastNLP.core.dataset.DataSet'>
     print(len(trainData))   # 1350
     print(trainData)
-    """ datasets['train'] 中的数据长成下面这样，
+    """
+    datasets['train'] 中的数据长成下面这样，
         +-----------------------------------------------------------+-----------------------------------------------------------+
         | chars                                                     | target                                                    |
         +-----------------------------------------------------------+-----------------------------------------------------------+
@@ -474,30 +477,36 @@ def load_weibo_ner(path,unigram_embedding_path=None,bigram_embedding_path=None,i
         | ['听', '说', '小', '米', '开', '卖', '了', '，', '刚',...  | ['O', 'O', 'O', 'O', 'O', 'O', 'O', 'O', 'O', 'O', 'O'... |
         | ...                                                       | ...                                                       |
         +-----------------------------------------------------------+-----------------------------------------------------------+
+
+        这个是 复旦大学开源工具fastNLP 中DataSet 的类型，其详细文档可参考：https://fastnlp.readthedocs.io/zh/latest/tutorials/tutorial_1_data_preprocess.html
+
     """
 
     for k,v in datasets.items():
         print('{}:{}'.format(k,len(v)))
     # print(*list(datasets.keys()))
+    
+    #step2.=============================根据得到的dataset构建字典信息
     vocabs = {}
+    # 需要学习一下 Vocabulary 的使用方法
+    # urL:https://fastnlp.readthedocs.io/zh/latest/tutorials/tutorial_2_vocabulary.html
     char_vocab = Vocabulary()
     bigram_vocab = Vocabulary()
     label_vocab = Vocabulary()
 
-    cnt = 0 # datasets 就3个键值对，分别是 train:[] , dev:[], test:[], 
-    for item in datasets.items():
-        if cnt < 100:
-            print(item)
-            cnt += 1
-        else: 
-            break
-
+    # datasets 就3个键值对，分别是 train:[] , dev:[], test:[]
+    for item in datasets.items():        
+        print(item)
+        
     for k,v in datasets.items():  # 处理键值对
         # ignore the word segmentation tag
-        v.apply_field(lambda x: [w[0] for w in x],'chars','chars')
+        # apply_field() 方法是fastNLP 中的一个处理DataSet 实例的方法
+        # 传入得chars 参数是干什么的？这是形参filed_name 和 new_field_name 的两个值，这表明没有对列名进行修改，即不扩增列
+        # 同理，第二个(get_bigrams,'chars','bigrams') 是根据 chars 这个列的值，新建bigrams这一列
+        v.apply_field(lambda x: [w[0] for w in x],'chars','chars')        
         v.apply_field(get_bigrams,'chars','bigrams')  # 感觉这里的效果就是将连续的两个字拼在一起，也就是所谓的 bigrams 
 
-    
+    # datasets['train']是一个DataSet 的实例 
     char_vocab.from_dataset(datasets['train'],field_name='chars',no_create_entry_dataset=[datasets['dev'],datasets['test']])
     label_vocab.from_dataset(datasets['train'],field_name='target')
     print('label_vocab:{}\n{}'.format(len(label_vocab),label_vocab.idx2word))
@@ -508,24 +517,20 @@ def load_weibo_ner(path,unigram_embedding_path=None,bigram_embedding_path=None,i
         v.add_seq_len('chars',new_field_name='seq_len')
 
 
-    vocabs['char'] = char_vocab
-    vocabs['label'] = label_vocab
-
-
     bigram_vocab.from_dataset(datasets['train'],field_name='bigrams',no_create_entry_dataset=[datasets['dev'],datasets['test']])
     if index_token:
         char_vocab.index_dataset(*list(datasets.values()), field_name='chars', new_field_name='chars')
         bigram_vocab.index_dataset(*list(datasets.values()),field_name='bigrams',new_field_name='bigrams')
         label_vocab.index_dataset(*list(datasets.values()), field_name='target', new_field_name='target')
 
-    # for k,v in datasets.items():
-    #     v.set_input('chars','bigrams','seq_len','target')
-    #     v.set_target('target','seq_len')
-
+    # vocabs 的构造和 datasets 的构造原理都是相同的
+    # 二者都是字典，不同的键值对应着不同的数据信息
+    vocabs['char'] = char_vocab
+    vocabs['label'] = label_vocab
     vocabs['bigram'] = bigram_vocab
 
+    # step3.=============================构建embedding信息
     embeddings = {}
-
     if unigram_embedding_path is not None:
         unigram_embedding = StaticEmbedding(char_vocab, model_dir_or_name=unigram_embedding_path,
                                             word_dropout=char_word_dropout,
@@ -540,7 +545,103 @@ def load_weibo_ner(path,unigram_embedding_path=None,bigram_embedding_path=None,i
 
     return datasets, vocabs, embeddings
 
+'''
+description: 
+param {type} :
+01.index_token ?? 是否让dataset 中的field 转为index
+return {type} 
+'''
+#@cache_results(_cache_fp='cache/weiboNER_uni+bi', _refresh=False)
+def load_tianchi_ner(path,unigram_embedding_path=None,bigram_embedding_path=None,index_token=True,
+                   char_min_freq=1,bigram_min_freq=1,only_train_min_freq=0,char_word_dropout=0.01):
+    from fastNLP.io.loader import ConllLoader
+    from utils import get_bigrams
+    
+    # step0.=============================准备数据，诸如数据地址等
+    loader = ConllLoader(['chars','target']) 
+    train_path = os.path.join(path,'tianchi.train')
+    dev_path = os.path.join(path, 'tianchi.dev')
+    test_path = os.path.join(path, 'tianchi.test')
 
+    paths = {}
+    paths['dev'] = dev_path
+    paths['train'] = train_path    
+    paths['test'] = test_path
+
+    # step1.=============================构建datasets
+    datasets = {}  # 字典！！！ 但是需要注意的是：datasets 中的每一项都是一个 DataSet 类的实例
+    for k,v in paths.items():
+        bundle = loader.load(v)
+        datasets[k] = bundle.datasets['train']
+
+    for k,v in datasets.items():
+        print('{}:{}'.format(k,len(v)))
+        
+    #step2.=============================根据得到的dataset构建字典信息
+    vocabs = {}
+    # 需要学习一下 Vocabulary 的使用方法
+    # urL:https://fastnlp.readthedocs.io/zh/latest/tutorials/tutorial_2_vocabulary.html
+    char_vocab = Vocabulary()
+    bigram_vocab = Vocabulary()
+    label_vocab = Vocabulary()
+
+    # datasets 就3个键值对，分别是 train:[] , dev:[], test:[]
+    for item in datasets.items():        
+        print(item)
+        
+    for k,v in datasets.items():  # 处理键值对
+        # ignore the word segmentation tag
+        # apply_field() 方法是fastNLP 中的一个处理DataSet 实例的方法
+        # 传入得chars 参数是干什么的？这是形参filed_name 和 new_field_name 的两个值，这表明没有对列名进行修改，即不扩增列
+        # 同理，第二个(get_bigrams,'chars','bigrams') 是根据 chars 这个列的值，新建bigrams这一列
+        v.apply_field(lambda x: [w[0] for w in x],'chars','chars')        
+        v.apply_field(get_bigrams,'chars','bigrams')  # 感觉这里的效果就是将连续的两个字拼在一起，也就是所谓的 bigrams 
+
+    # datasets['train']是一个DataSet 的实例 
+    # 形参no_create_entry_dataset的作用：在建立词表的时候将test与dev就考虑到模型中，这会使得最终的结果更好
+    # 根据训练数据构建字典信息
+    char_vocab.from_dataset(datasets['train'],field_name='chars',no_create_entry_dataset=[datasets['dev'],datasets['test']])
+    bigram_vocab.from_dataset(datasets['train'],field_name='bigrams',no_create_entry_dataset=[datasets['dev'],datasets['test']])
+    #char_vocab.from_dataset(datasets['train'],field_name='chars',no_create_entry_dataset=datasets['dev'])
+    label_vocab.from_dataset(datasets['train'],field_name='target')
+    #bigram_vocab.from_dataset(datasets['train'],field_name='bigrams',no_create_entry_dataset=datasets['dev'])
+    print('label_vocab:{}\n{}'.format(len(label_vocab),label_vocab.idx2word))
+
+    for k,v in datasets.items():
+        # 将使用len()直接对field_name中每个元素作用，将其结果作为sequence length, 并放入new_field_name=seq_len这个field
+        v.add_seq_len('chars',new_field_name='seq_len')
+
+    # 是否将dataset中的每列转为字典中的index
+    # 我对 *list(datasets.values()) 这个不是很熟悉
+    if index_token:
+        char_vocab.index_dataset(*list(datasets.values()), field_name='chars', new_field_name='chars')
+        bigram_vocab.index_dataset(*list(datasets.values()),field_name='bigrams',new_field_name='bigrams')
+        label_vocab.index_dataset(*list(datasets.values()), field_name='target', new_field_name='target')
+
+    # vocabs 的构造和 datasets 的构造原理都是相同的
+    # 二者都是字典，不同的键值对应着不同的数据信息
+    vocabs['char'] = char_vocab
+    vocabs['label'] = label_vocab
+    vocabs['bigram'] = bigram_vocab
+
+    # step3.=============================构建embedding信息
+    '''有如下几个问题：
+    01.不是说预训练的embedding 会失去上下文的语义信息吗？为什么这里又用embedding了？
+    '''
+    embeddings = {}
+    if unigram_embedding_path is not None:
+        unigram_embedding = StaticEmbedding(char_vocab, model_dir_or_name=unigram_embedding_path,
+                                            word_dropout=char_word_dropout,
+                                            min_freq=char_min_freq,only_train_min_freq=only_train_min_freq,)
+        embeddings['char'] = unigram_embedding
+
+    if bigram_embedding_path is not None:
+        bigram_embedding = StaticEmbedding(bigram_vocab, model_dir_or_name=bigram_embedding_path,
+                                           word_dropout=0.01,
+                                           min_freq=bigram_min_freq,only_train_min_freq=only_train_min_freq)
+        embeddings['bigram'] = bigram_embedding
+
+    return datasets, vocabs, embeddings
 
 
 if __name__ == '__main__':

@@ -77,11 +77,6 @@ def equip_chinese_ner_with_lexicon(datasets,vocabs,embeddings,w_list,word_embedd
         for w in lexicon_in_train:
             w_trie.insert(w)
 
-
-
-
-
-
     import copy
     for k,v in datasets.items():
         v.apply_field(partial(get_skip_path,w_trie=w_trie),'chars','lexicons')
@@ -144,14 +139,6 @@ def equip_chinese_ner_with_lexicon(datasets,vocabs,embeddings,w_list,word_embedd
         v.apply(get_pos_e, new_field_name='pos_e')
         v.set_input('pos_s','pos_e')
 
-    # print(list(datasets['train'][:10]['lexicons']))
-    # print(list(datasets['train'][:10]['lattice']))
-    # print(list(datasets['train'][:10]['lex_s']))
-    # print(list(datasets['train'][:10]['lex_e']))
-    # print(list(datasets['train'][:10]['pos_s']))
-    # print(list(datasets['train'][:10]['pos_e']))
-    # exit(1208)
-
 
     word_vocab = Vocabulary()
     word_vocab.add_word_lst(w_list)
@@ -161,31 +148,6 @@ def equip_chinese_ner_with_lexicon(datasets,vocabs,embeddings,w_list,word_embedd
     lattice_vocab.from_dataset(datasets['train'],field_name='lattice',
                                no_create_entry_dataset=[v for k,v in datasets.items() if k != 'train'])
     vocabs['lattice'] = lattice_vocab
-    # for k,v in datasets.items():
-    #     v.apply_field(lambda x:[ list(map(lambda x:x[0],p)) for p in x],'skips_l2r','skips_l2r_source')
-    #     v.apply_field(lambda x:[ list(map(lambda x:x[1],p)) for p in x], 'skips_l2r', 'skips_l2r_word')
-    #
-    # for k,v in datasets.items():
-    #     v.apply_field(lambda x:[ list(map(lambda x:x[0],p)) for p in x],'skips_r2l','skips_r2l_source')
-    #     v.apply_field(lambda x:[ list(map(lambda x:x[1],p)) for p in x], 'skips_r2l', 'skips_r2l_word')
-
-    # for k,v in datasets.items():
-    #     v.apply_field(lambda x:list(map(len,x)), 'skips_l2r_word', 'lexicon_count')
-    #     v.apply_field(lambda x:
-    #                   list(map(lambda y:
-    #                            list(map(lambda z:word_vocab.to_index(z),y)),x)),
-    #                   'skips_l2r_word',new_field_name='skips_l2r_word')
-    #
-    #     v.apply_field(lambda x:list(map(len,x)), 'skips_r2l_word', 'lexicon_count_back')
-    #
-    #     v.apply_field(lambda x:
-    #                   list(map(lambda y:
-    #                            list(map(lambda z:word_vocab.to_index(z),y)),x)),
-    #                   'skips_r2l_word',new_field_name='skips_r2l_word')
-
-
-
-
 
     if word_embedding_path is not None:
         word_embedding = StaticEmbedding(word_vocab,word_embedding_path,word_dropout=0)
@@ -204,6 +166,5 @@ def equip_chinese_ner_with_lexicon(datasets,vocabs,embeddings,w_list,word_embedd
                               field_name='target', new_field_name='target')
     vocabs['lattice'].index_dataset(* (datasets.values()),
                                     field_name='lattice', new_field_name='lattice')
-
 
     return datasets,vocabs,embeddings

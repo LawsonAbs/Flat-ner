@@ -223,7 +223,7 @@ class Absolute_Position_Embedding(nn.Module):
 
 
 '''
-description: 这个类是最重要的类
+description: 这个类是最重要的类，也就是实现FLAT的地方
 param {type} 
 return {type} 
 '''
@@ -234,10 +234,23 @@ class Lattice_Transformer_SeqLabel(nn.Module):
                  layer_preprocess_sequence, layer_postprocess_sequence,
                  ff_size=-1, scaled=True , dropout=None,use_bigram=True,mode=collections.defaultdict(bool),
                  dvc=None,vocabs=None,
-                 rel_pos_shared=True,max_seq_len=-1,k_proj=True,q_proj=True,v_proj=True,r_proj=True,
-                 self_supervised=False,attn_ff=True,pos_norm=False,ff_activate='relu',rel_pos_init=0,
-                 abs_pos_fusion_func='concat',embed_dropout_pos='0',
-                 four_pos_shared=True,four_pos_fusion=None,four_pos_fusion_shared=True,bert_embedding=None):
+                 rel_pos_shared=True,
+                 max_seq_len=-1,
+                 k_proj=True,
+                 q_proj=True,
+                 v_proj=True,
+                 r_proj=True,
+                 self_supervised=False,
+                 attn_ff=True,
+                 pos_norm=False,
+                 ff_activate='relu',
+                 rel_pos_init=0,
+                 abs_pos_fusion_func='concat',
+                 embed_dropout_pos='0',
+                 four_pos_shared=True,
+                 four_pos_fusion=None,
+                 four_pos_fusion_shared=True,
+                 bert_embedding=None):
         '''
         :param rel_pos_init: 如果是0，那么从-max_len到max_len的相对位置编码矩阵就按0-2*max_len来初始化，
         如果是1，那么就按-max_len,max_len来初始化
@@ -247,7 +260,7 @@ class Lattice_Transformer_SeqLabel(nn.Module):
         '''
         super().__init__()
 
-        self.use_bert = False
+        self.use_bert = False # 这里为什么会设为False ？仅仅是初始化？
         if bert_embedding is not None:
             self.use_bert = True
             self.bert_embedding = bert_embedding
@@ -572,11 +585,6 @@ class BERT_SeqLabel(nn.Module):
             result = {'pred': pred}
 
             return result
-
-
-
-
-
 
 
 class Transformer_SeqLabel(nn.Module):
