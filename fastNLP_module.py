@@ -21,7 +21,7 @@ class StaticEmbedding(TokenEmbedding):
     StaticEmbedding组件. 给定预训练embedding的名称或路径，根据vocab从embedding中抽取相应的数据(只会将出现在vocab中的词抽取出来，
     如果没有找到，则会随机初始化一个值(但如果该word是被标记为no_create_entry的话，则不会单独创建一个值，而是会被指向unk的index))。
     当前支持自动下载的预训练vector有以下的几种(待补充);
-
+    
     Example::
 
         >>> from fastNLP import Vocabulary
@@ -259,7 +259,10 @@ class StaticEmbedding(TokenEmbedding):
                 vectors = torch.cat((vectors, torch.zeros(1, dim)), dim=0).contiguous()
             else:
                 unknown_idx = vocab.unknown_idx
-            self.register_buffer('words_to_words', torch.full((len(vocab),), fill_value=unknown_idx).long())
+            
+            #self.register_buffer('words_to_words', torch.full((len(vocab),), fill_value=unknown_idx).long())
+            #源代码如上，但是因为好像版本问题报错，所以就修改成了下面这样子
+            self.register_buffer('words_to_words', torch.full((len(vocab),), fill_value=unknown_idx,dtype=torch.long))
             for index, (index_in_vocab, vec) in enumerate(matrix.items()):
                 if vec is not None:
                     vectors[index] = vec
