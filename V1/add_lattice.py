@@ -1,11 +1,23 @@
 from fastNLP import cache_results
 
-
+'''
+description:  我对word_embedding_path  和word_char_mix_embedding_path 二者之间的区别不是很懂
+param {type} 
+01.word_embedding_path 
+02.word_char_mix_embedding_path 
+return {type} 
+'''
 @cache_results(_cache_fp='need_to_defined_fp',_refresh=True)
-def equip_chinese_ner_with_lexicon(datasets,vocabs,embeddings,w_list,word_embedding_path=None,
-                                   only_lexicon_in_train=False,word_char_mix_embedding_path=None,
+def equip_chinese_ner_with_lexicon(datasets,
+                                    vocabs,
+                                    embeddings,
+                                    w_list,
+                                    word_embedding_path=None,  
+                                   only_lexicon_in_train=False,
+                                   word_char_mix_embedding_path=None, # 字和词的embedding信息
                                    number_normalized=False,
-                                   lattice_min_freq=1,only_train_min_freq=0):
+                                   lattice_min_freq=1,
+                                   only_train_min_freq=0):
     from fastNLP.core import Vocabulary
     def normalize_char(inp):
         result = []
@@ -54,8 +66,7 @@ def equip_chinese_ner_with_lexicon(datasets,vocabs,embeddings,w_list,word_embedd
         return result
     from V0.utils_ import Trie
     from functools import partial
-    from fastNLP.core import Vocabulary
-    # from fastNLP.embeddings import StaticEmbedding
+    from fastNLP.core import Vocabulary    
     from fastNLP_module import StaticEmbedding
     from fastNLP import DataSet
     a = DataSet()
@@ -149,6 +160,13 @@ def equip_chinese_ner_with_lexicon(datasets,vocabs,embeddings,w_list,word_embedd
                                no_create_entry_dataset=[v for k,v in datasets.items() if k != 'train'])
     vocabs['lattice'] = lattice_vocab
 
+    """
+    1.word_embedding_path 这个参数到底是用做什么的？
+    我将其设置成了 None。但是如果为None，那么embedding['word']没有了还可以吗？
+    
+    2.StaticEmbedding：
+    给定预训练embedding的名称或路径，根据vocab从embedding中抽取相应的数据(只会将出现在vocab中的词抽取出来， 如果没有找到，则会随机初始化一个值(但如果该word是被标记为no_create_entry的话，则不会单独创建一个值，而是会被指向unk的index))
+    """
     if word_embedding_path is not None:
         word_embedding = StaticEmbedding(word_vocab,word_embedding_path,word_dropout=0)
         embeddings['word'] = word_embedding

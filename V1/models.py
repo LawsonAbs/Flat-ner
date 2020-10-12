@@ -225,6 +225,9 @@ class Absolute_Position_Embedding(nn.Module):
 '''
 description: 这个类是最重要的类，也就是实现FLAT的地方
 param {type} 
+01.lattice_embed
+02.bigram_embed ： 为什么传入的是bigram_embed 而不是 unigram_embedding 呢 ？
+注意传入的都是实例，而不是数据，在forward()函数中，会用这些实例处理该数据
 return {type} 
 '''
 class Lattice_Transformer_SeqLabel(nn.Module):
@@ -232,7 +235,7 @@ class Lattice_Transformer_SeqLabel(nn.Module):
                  num_heads, num_layers,
                  use_abs_pos,use_rel_pos, learnable_position,add_position,
                  layer_preprocess_sequence, layer_postprocess_sequence,
-                 ff_size=-1, scaled=True , dropout=None,use_bigram=True,mode=collections.defaultdict(bool),
+                 ff_size=-1, scaled=True , dropout=None,use_bigram=True,mode=collections.defaultdict(bool), # use_bigram 代表什么意思？
                  dvc=None,vocabs=None,
                  rel_pos_shared=True,
                  max_seq_len=-1,
@@ -260,7 +263,7 @@ class Lattice_Transformer_SeqLabel(nn.Module):
         '''
         super().__init__()
 
-        self.use_bert = False # 这里为什么会设为False ？仅仅是初始化？
+        self.use_bert = False # 这里为什么会设为False ？仅仅是初始化？ # 是根据bert_embedding 来反向推导是否使用bert 来做embedding 
         if bert_embedding is not None:
             self.use_bert = True
             self.bert_embedding = bert_embedding
@@ -425,9 +428,10 @@ class Lattice_Transformer_SeqLabel(nn.Module):
         batch_size = lattice.size(0)
         max_seq_len_and_lex_num = lattice.size(1)
         max_seq_len = bigrams.size(1)
-
-        raw_embed = self.lattice_embed(lattice)
+        
         #raw_embed 是字和词的pretrain的embedding，但是是分别trian的，所以需要区分对待
+        raw_embed = self.lattice_embed(lattice)
+        
         if self.use_bigram:
             bigrams_embed = self.bigram_embed(bigrams)
             bigrams_embed = torch.cat([bigrams_embed,

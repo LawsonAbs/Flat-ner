@@ -6,15 +6,18 @@ import fitlog
 import pickle
 import os
 from fastNLP import cache_results
+from torch import embedding
 # from fastNLP.embeddings import StaticEmbedding
 from fastNLP_module import StaticEmbedding
+from utils import writeList2File
+from fastNLP.io.loader import ConllLoader
+from utils import get_bigrams
+from functools import partial    
 
 
 @cache_results(_cache_fp='cache/ontonotes4ner',_refresh=False)
 def load_ontonotes4ner(path,char_embedding_path=None,bigram_embedding_path=None,index_token=True,train_clip=False,
-                       char_min_freq=1,bigram_min_freq=1,only_train_min_freq=0):
-    from fastNLP.io.loader import ConllLoader
-    from utils import get_bigrams
+                       char_min_freq=1,bigram_min_freq=1,only_train_min_freq=0):    
 
     train_path = os.path.join(path,'train.char.bmes{}'.format('_clip' if train_clip else ''))
     dev_path = os.path.join(path,'dev.char.bmes')
@@ -82,12 +85,9 @@ def load_ontonotes4ner(path,char_embedding_path=None,bigram_embedding_path=None,
     return datasets,vocabs,embeddings
 
 
-
 @cache_results(_cache_fp='cache/resume_ner',_refresh=False)
 def load_resume_ner(path,char_embedding_path=None,bigram_embedding_path=None,index_token=True,
                     char_min_freq=1,bigram_min_freq=1,only_train_min_freq=0):
-    from fastNLP.io.loader import ConllLoader
-    from utils import get_bigrams
 
     train_path = os.path.join(path,'train.char.bmes')
     dev_path = os.path.join(path,'dev.char.bmes')
@@ -161,7 +161,6 @@ def load_resume_ner(path,char_embedding_path=None,bigram_embedding_path=None,ind
 def equip_chinese_ner_with_skip(datasets,vocabs,embeddings,w_list,word_embedding_path=None,
                                 word_min_freq=1,only_train_min_freq=0):
     from utils_ import Trie,get_skip_path
-    from functools import partial
     w_trie = Trie()
     for w in w_list:
         w_trie.insert(w)
@@ -266,6 +265,14 @@ def equip_chinese_ner_with_skip(datasets,vocabs,embeddings,w_list,word_embedding
     return datasets,vocabs,embeddings
 
 
+'''
+description: yangjie_word_char_mix.txt 这个文件中是对每个词语的embedding 存储，但是问题有：
+01.这个embedding 是怎么来的？
+02.如果换成其他词了，这个embedding 改怎么生成？
+03.针对不同领域的文本，应该使用不同的词典。这就需要我们自己的工作了
+param {type} 
+return {type} 
+'''
 @cache_results(_cache_fp='cache/load_yangjie_rich_pretrain_word_list',_refresh=False)
 def load_yangjie_rich_pretrain_word_list(embedding_path,drop_characters=True):
     f = open(embedding_path,'r')
@@ -273,19 +280,18 @@ def load_yangjie_rich_pretrain_word_list(embedding_path,drop_characters=True):
     w_list = []
     for line in lines:
         splited = line.strip().split(' ')
-        w = splited[0]
+        w = splited[0]        
         w_list.append(w)
 
     if drop_characters:
         w_list = list(filter(lambda x:len(x) != 1, w_list))
 
+    # writeList2File(w_list,"wordsList.txt")
     return w_list
 
 
 @cache_results(_cache_fp='cache/ontonotes4ner',_refresh=False)
-def load_toy_ner(path,char_embedding_path=None,bigram_embedding_path=None,index_token=True,train_clip=False):
-    from fastNLP.io.loader import ConllLoader
-    from utils import get_bigrams
+def load_toy_ner(path,char_embedding_path=None,bigram_embedding_path=None,index_token=True,train_clip=False):    
 
     train_path = os.path.join(path,'toy_train.bmes')
     dev_path = os.path.join(path,'toy_dev.bmes')
@@ -353,9 +359,7 @@ def load_toy_ner(path,char_embedding_path=None,bigram_embedding_path=None,index_
 
 @cache_results(_cache_fp='cache/msraner1',_refresh=False)
 def load_msra_ner_1(path,char_embedding_path=None,bigram_embedding_path=None,index_token=True,train_clip=False,
-                              char_min_freq=1,bigram_min_freq=1,only_train_min_freq=0):
-    from fastNLP.io.loader import ConllLoader
-    from utils import get_bigrams
+                              char_min_freq=1,bigram_min_freq=1,only_train_min_freq=0):    
     if train_clip:
         train_path = os.path.join(path, 'train_dev.char.bmes_clip1')
         test_path = os.path.join(path, 'test.char.bmes_clip1')
@@ -433,9 +437,7 @@ description:
 '''
 @cache_results(_cache_fp='cache/weiboNER_uni+bi', _refresh=False)
 def load_weibo_ner(path,unigram_embedding_path=None,bigram_embedding_path=None,index_token=True,
-                   char_min_freq=1,bigram_min_freq=1,only_train_min_freq=0,char_word_dropout=0.01):
-    from fastNLP.io.loader import ConllLoader
-    from utils import get_bigrams
+                   char_min_freq=1,bigram_min_freq=1,only_train_min_freq=0,char_word_dropout=0.01):    
     
     # step0.=============================准备数据，诸如数据地址等
     loader = ConllLoader(['chars','target'])
@@ -449,11 +451,12 @@ def load_weibo_ner(path,unigram_embedding_path=None,bigram_embedding_path=None,i
     paths['test'] = test_path
 
     # step1.=============================构建datasets
-    datasets = {}  # 字典！！！ 但是需要注意的是：datasets 中的每一项都是一个 DataSet 类的实例
+    datasets = {}  # 字典！！！ 但是需要注意的是：datasets 中的每一项都是一个(fastNLP)中 DataSet 类的实例
     for k,v in paths.items():
         bundle = loader.load(v)
+        # 这里有点儿疑问，为什么是固定的 'train' 作为参数？
         # 固定的 train 为参数，是因为bundle 这个实例的设置，它是把数据都放到 train 这个里面了
-        datasets[k] = bundle.datasets['train']  # 这里有点儿疑问，为什么是固定的 'train' 作为参数？
+        datasets[k] = bundle.datasets['train']  
     
     trainData = datasets['train']
     
@@ -551,11 +554,16 @@ param {type} :
 01.index_token ?? 是否让dataset 中的field 转为index
 return {type} 
 '''
-#@cache_results(_cache_fp='cache/weiboNER_uni+bi', _refresh=False)
-def load_tianchi_ner(path,unigram_embedding_path=None,bigram_embedding_path=None,index_token=True,
-                   char_min_freq=1,bigram_min_freq=1,only_train_min_freq=0,char_word_dropout=0.01):
-    from fastNLP.io.loader import ConllLoader
-    from utils import get_bigrams
+@cache_results(_cache_fp='cache/tianChiNER_uni+bi', _refresh=False)
+def load_tianchi_ner(path,
+                    unigram_embedding_path=None, # yangjie_rich_pretrain_unigram_path
+                    bigram_embedding_path=None,# yangjie_rich_pretrain_bigram_path
+                    index_token=True,
+                    char_min_freq=1,
+                    bigram_min_freq=1,
+                    only_train_min_freq=0,
+                    char_word_dropout=0.01
+                    ):
     
     # step0.=============================准备数据，诸如数据地址等
     loader = ConllLoader(['chars','target']) 
@@ -602,8 +610,8 @@ def load_tianchi_ner(path,unigram_embedding_path=None,bigram_embedding_path=None
     # 根据训练数据构建字典信息
     char_vocab.from_dataset(datasets['train'],field_name='chars',no_create_entry_dataset=[datasets['dev'],datasets['test']])
     bigram_vocab.from_dataset(datasets['train'],field_name='bigrams',no_create_entry_dataset=[datasets['dev'],datasets['test']])
-    #char_vocab.from_dataset(datasets['train'],field_name='chars',no_create_entry_dataset=datasets['dev'])
     label_vocab.from_dataset(datasets['train'],field_name='target')
+    #char_vocab.from_dataset(datasets['train'],field_name='chars',no_create_entry_dataset=datasets['dev'])
     #bigram_vocab.from_dataset(datasets['train'],field_name='bigrams',no_create_entry_dataset=datasets['dev'])
     print('label_vocab:{}\n{}'.format(len(label_vocab),label_vocab.idx2word))
 
@@ -627,22 +635,31 @@ def load_tianchi_ner(path,unigram_embedding_path=None,bigram_embedding_path=None
     # step3.=============================构建embedding信息
     '''有如下几个问题：
     01.不是说预训练的embedding 会失去上下文的语义信息吗？为什么这里又用embedding了？
+    02.这个embedding 和后面的bertEmbedding 有什么区别？
+    03.需要学习一下 StaticEmbedding()的作用
     '''
     embeddings = {}
     if unigram_embedding_path is not None:
-        unigram_embedding = StaticEmbedding(char_vocab, model_dir_or_name=unigram_embedding_path,
+        unigram_embedding = StaticEmbedding(char_vocab, 
+                                            model_dir_or_name=unigram_embedding_path,
                                             word_dropout=char_word_dropout,
-                                            min_freq=char_min_freq,only_train_min_freq=only_train_min_freq,)
+                                            min_freq=char_min_freq,
+                                            only_train_min_freq=only_train_min_freq)
+        # 这里的 unigram_embedding 就是一个实例
         embeddings['char'] = unigram_embedding
-
+        
     if bigram_embedding_path is not None:
-        bigram_embedding = StaticEmbedding(bigram_vocab, model_dir_or_name=bigram_embedding_path,
+        bigram_embedding = StaticEmbedding(bigram_vocab,
+                                           model_dir_or_name=bigram_embedding_path,
                                            word_dropout=0.01,
-                                           min_freq=bigram_min_freq,only_train_min_freq=only_train_min_freq)
+                                           min_freq=bigram_min_freq,
+                                           only_train_min_freq=only_train_min_freq)
         embeddings['bigram'] = bigram_embedding
 
     return datasets, vocabs, embeddings
 
 
 if __name__ == '__main__':
-    pass
+    path = 'data/pretrain/yangjie_word_char_mix.txt'
+    #load_yangjie_rich_pretrain_word_list(path)
+    

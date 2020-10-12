@@ -214,59 +214,6 @@ class MultiHead_Attention_Lattice_rel_save_gpumm(nn.Module):
     def forward(self,key, query, value, seq_len, lex_num, pos_s,pos_e,rel_pos_embedding):
         batch = key.size(0)
         #这里的seq_len已经是之前的seq_len+lex_num了
-
-        #开始计算相对位置融合
-
-        # pos_ss = pos_s.unsqueeze(-1)-pos_s.unsqueeze(-2)
-        # pos_se = pos_s.unsqueeze(-1)-pos_e.unsqueeze(-2)
-        # pos_es = pos_e.unsqueeze(-1)-pos_s.unsqueeze(-2)
-        # pos_ee = pos_e.unsqueeze(-1)-pos_e.unsqueeze(-2)
-        #
-        # if self.mode['debug']:
-        #     print('pos_s:{}'.format(pos_s))
-        #     print('pos_e:{}'.format(pos_e))
-        #     print('pos_ss:{}'.format(pos_ss))
-        #     print('pos_se:{}'.format(pos_se))
-        #     print('pos_es:{}'.format(pos_es))
-        #     print('pos_ee:{}'.format(pos_ee))
-        # # B prepare relative position encoding
-        # max_seq_len = key.size(1)
-        # # rel_distance = self.seq_len_to_rel_distance(max_seq_len)
-        #
-        # # rel_distance_flat = rel_distance.view(-1)
-        # # rel_pos_embedding_flat = self.pe[rel_distance_flat+self.max_seq_len]
-        # # rel_pos_embedding = rel_pos_embedding_flat.view(size=[max_seq_len,max_seq_len,self.hidden_size])
-        # pe_ss = self.pe[(pos_ss).view(-1)+self.max_seq_len].view(size=[batch,max_seq_len,max_seq_len,-1])
-        # pe_se = self.pe[(pos_se).view(-1) + self.max_seq_len].view(size=[batch, max_seq_len, max_seq_len, -1])
-        # pe_es = self.pe[(pos_es).view(-1) + self.max_seq_len].view(size=[batch, max_seq_len, max_seq_len, -1])
-        # pe_ee = self.pe[(pos_ee).view(-1) + self.max_seq_len].view(size=[batch, max_seq_len, max_seq_len, -1])
-        #
-        # # print('pe_ss:{}'.format(pe_ss.size()))
-        #
-        # if self.four_pos_fusion == 'ff':
-        #     pe_4 = torch.cat([pe_ss,pe_se,pe_es,pe_ee],dim=-1)
-        #     if self.mode['gpumm']:
-        #         print('四个位置合起来:{},{}'.format(pe_4.size(),size2MB(pe_4.size())))
-        #     rel_pos_embedding = self.pos_fusion_forward(pe_4)
-        # elif self.four_pos_fusion == 'attn':
-        #     pe_4 = torch.cat([pe_ss,pe_se,pe_es,pe_ee],dim=-1)
-        #     attn_score = self.pos_attn_score(pe_4)
-        #     pe_4_unflat = pe_4.view(batch,max_seq_len,max_seq_len,4,self.hidden_size)
-        #     pe_4_fusion = (attn_score.unsqueeze(-1) * pe_4_unflat).sum(dim=-2)
-        #     rel_pos_embedding = pe_4_fusion
-        #     if self.mode['debug']:
-        #         print('pe_4照理说应该是 Batch * SeqLen * SeqLen * HiddenSize')
-        #         print(pe_4_fusion.size())
-        # elif self.four_pos_fusion == 'gate':
-        #     pe_4 = torch.cat([pe_ss, pe_se, pe_es, pe_ee], dim=-1)
-        #     gate_score = self.pos_gate_score(pe_4).view(batch,max_seq_len,max_seq_len,4,self.hidden_size)
-        #     gate_score = F.softmax(gate_score,dim=-2)
-        #     pe_4_unflat = pe_4.view(batch, max_seq_len, max_seq_len, 4, self.hidden_size)
-        #     pe_4_fusion = (gate_score * pe_4_unflat).sum(dim=-2)
-        #     rel_pos_embedding = pe_4_fusion
-        #
-        #结束计算相对位置融合
-
         # E prepare relative position encoding
 
         if self.k_proj:

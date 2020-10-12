@@ -22,7 +22,7 @@ import collections
 import torch.optim as optim
 import torch.nn as nn
 from fastNLP import LossInForward
-from fastNLP.core.metrics import SpanFPreRecMetric,AccuracyMetric
+from fastNLP.core.metrics import MetricBase, SpanFPreRecMetric,AccuracyMetric
 from fastNLP.core.callback import WarmupCallback,GradientClipCallback,EarlyStopCallback
 from fastNLP import FitlogCallback
 from fastNLP import LRScheduler
@@ -63,20 +63,18 @@ parser.add_argument('--number_normalized',type=int,default=0,
                     choices=[0,1,2,3],help='0不norm，1只norm char,2norm char和bigram，3norm char，bigram和lattice')
 parser.add_argument('--lexicon_name',default='yj',choices=['lk','yj'])
 parser.add_argument('--use_pytorch_dropout',type=int,default=0)
-
 parser.add_argument('--char_min_freq',default=1,type=int)
 parser.add_argument('--bigram_min_freq',default=1,type=int)
 parser.add_argument('--lattice_min_freq',default=1,type=int)
 parser.add_argument('--only_train_min_freq',default=True)
 parser.add_argument('--only_lexicon_in_train',default=False)
-
-
 parser.add_argument('--word_min_freq',default=1,type=int)
+
 
 # hyper of training
 parser.add_argument('--early_stop',default=25,type=int)
 parser.add_argument('--epoch', default=200, type=int) 
-parser.add_argument('--batch', default=10, type=int)
+parser.add_argument('--batch', default=5, type=int) # 我修改了默认batch的大小
 parser.add_argument('--optim', default='sgd', help='sgd|adam')
 #parser.add_argument('--lr', default=6e-4, type=float)
 parser.add_argument('--lr', default=6e-3, type=float)
@@ -88,11 +86,9 @@ parser.add_argument('--self_supervised',default=False)
 parser.add_argument('--weight_decay',default=0,type=float)
 parser.add_argument('--norm_embed',default=True)
 parser.add_argument('--norm_lattice_embed',default=True)
-
 parser.add_argument('--warmup',default=0.1,type=float)
 
 # hyper of model
-# parser.add_argument('--use_bert',type=int,default=1)
 parser.add_argument('--model',default='transformer',help='lstm|transformer')
 parser.add_argument('--lattice',default=1,type=int)
 parser.add_argument('--use_bigram', default=1,type=int)
@@ -127,10 +123,6 @@ parser.add_argument('--four_pos_fusion',default='ff_two',choices=['ff','attn','g
                          'gate和attn类似，只不过就是计算的加权多了一个维度')
 
 parser.add_argument('--four_pos_fusion_shared',default=True,help='是不是要共享4个位置融合之后形成的pos')
-
-# parser.add_argument('--rel_pos_scale',default=2,help='在lattice且用相对位置编码时，由于中间过程消耗显存过大，'
-#                                                  '所以可以使4个位置的初始embedding size缩小，'
-#                                                  '最后融合时回到正常的hidden size即可')
 
 parser.add_argument('--pre', default='')
 parser.add_argument('--post', default='an')
@@ -195,8 +187,8 @@ refresh_data = False  # 用以表示加载数据的时候是否重新加载
 for k,v in args.__dict__.items():
     print_info('{}:{}'.format(k,v))
 
-raw_dataset_cache_name = os.path.join('cache',args.dataset+
-                          '_trainClip:{}'.format(args.train_clip)
+raw_dataset_cache_name = os.path.join('cache',args.dataset
+                                      +'_trainClip:{}'.format(args.train_clip)
                                       +'bgminfreq_{}'.format(args.bigram_min_freq)
                                       +'char_min_freq_{}'.format(args.char_min_freq)
                                       +'word_min_freq_{}'.format(args.word_min_freq)
@@ -231,14 +223,16 @@ elif args.dataset == 'weibo':
                                                 char_min_freq=args.char_min_freq,
                                                 bigram_min_freq=args.bigram_min_freq,
                                                 only_train_min_freq=args.only_train_min_freq
-                                                    )
+                                                )
+
 # 添加天池的数据集
+# embeddings 的作用是什么？
 elif args.dataset == 'tianchi':
-    datasets,vocabs,embeddings = load_tianchi_ner(tianchi_ner_path, # 文本数据集
-                                                yangjie_rich_pretrain_unigram_path, # 这是两个预训练好的结果
-                                                yangjie_rich_pretrain_bigram_path,
-                                                #_refresh=refresh_data, # 下面两行是关于cache 的参数
-                                                #_cache_fp=raw_dataset_cache_name,
+        datasets,vocabs,embeddings = load_tianchi_ner(tianchi_ner_path, # 文本数据集
+                                                #yangjie_rich_pretrain_unigram_path, # 这是两个预训练好的结果
+                                                #yangjie_rich_pretrain_bigram_path,
+                                                _refresh=refresh_data, # 下面两行是关于cache 的参数
+                                                _cache_fp=raw_dataset_cache_name,
                                                 index_token=False,               
                                                 char_min_freq=args.char_min_freq,
                                                 bigram_min_freq=args.bigram_min_freq,
@@ -251,8 +245,6 @@ if args.gaz_dropout < 0:
 args.hidden = args.head_dim * args.head
 args.ff = args.hidden * args.ff
 
-# fitlog.add_hyper(args)
-
 
 if args.dataset == 'ontonotes':
     args.update_every = 2
@@ -262,8 +254,11 @@ if args.dataset == 'ontonotes':
 if args.lexicon_name == 'lk':
     yangjie_rich_pretrain_word_path = lk_word_path_2
 
+#print('用的词表的路径:{}'.format(yangjie_rich_pretrain_word_path))
 print('用的词表的路径:{}'.format(yangjie_rich_pretrain_word_path))
 
+# 需要根据天池的任务进行修改，我觉得不应该读取 yangjie_rich_pretrian_word_path
+# 而应该读取一个和任务相关的词典数据
 w_list = load_yangjie_rich_pretrain_word_list(yangjie_rich_pretrain_word_path,
                                               _refresh=refresh_data,
                                               _cache_fp='cache/{}'.format(args.lexicon_name)
@@ -277,15 +272,29 @@ cache_name = os.path.join('cache',(args.dataset+'_lattice'+'_only_train:{}'+
                           args.train_clip,args.number_normalized,args.char_min_freq,
                                   args.bigram_min_freq,args.word_min_freq,args.only_train_min_freq,
                                   args.number_normalized,args.lexicon_name,load_dataset_seed))
-                                  
-datasets,vocabs,embeddings = equip_chinese_ner_with_lexicon(datasets,vocabs,embeddings,
-                                                            w_list,yangjie_rich_pretrain_word_path,
-                                                            _refresh=refresh_data,_cache_fp=cache_name,
+
+'''
+vocabs['lattice'] 这个就是在 equip_chinese_ner_with_lexicon() 方法中生成的，其中的内容就是词语
+'''                                  
+datasets,vocabs,embeddings = equip_chinese_ner_with_lexicon(datasets,
+                                                            vocabs,
+                                                            embeddings,  # 传入刚才读取的embedding
+                                                            w_list,   # 这个也需要根据tianchi任务进行修改
+                                                            word_embedding_path = None, 
+                                                            # yangjie_rich_pretrain_word_path,  # 用的是这个词表的embedding
+                                                            _refresh=refresh_data,
+                                                            _cache_fp=cache_name,
                                                             only_lexicon_in_train=args.only_lexicon_in_train,
-                                                            word_char_mix_embedding_path=yangjie_rich_pretrain_char_and_word_path,
+                                                            #原论文中是使用的下面这个路径的词典，但是针对天池数据，
+                                                            #我将其设置 cn-sgns-literature-word ，也是一个与训练的包，可能会含有自己
+                                                            #需要的关键词多一些
+                                                            #word_char_mix_embedding_path=yangjie_rich_pretrain_char_and_word_path,
+                                                            #word_char_mix_embedding_path=tianchi_pretrain_words_path,
+                                                            word_char_mix_embedding_path = 'cn-sgns-literature-word',
                                                             number_normalized=args.number_normalized,
                                                             lattice_min_freq=args.lattice_min_freq,
                                                             only_train_min_freq=args.only_train_min_freq)
+print(vocabs['lattice'])
 
 print('train:{}'.format(len(datasets['train'])))
 avg_seq_len = 0
@@ -337,7 +346,6 @@ for k,v in datasets.items():
     print('{} max_seq_lex:{}'.format(k, max_seq_lex))
 
 
-
 # max_seq_len = max(max(datasets['train']['seq_len']),max(datasets['dev']['seq_len']),max(datasets['test']['seq_len']))
 import copy
 max_seq_len = max(* map(lambda x:max(x['seq_len']),datasets.values()))
@@ -347,26 +355,28 @@ show_index = 4
 print('raw_chars:{}'.format(list(datasets['train'][show_index]['raw_chars'])))
 print('lexicons:{}'.format(list(datasets['train'][show_index]['lexicons'])))
 print('lattice:{}'.format(list(datasets['train'][show_index]['lattice'])))
-print('raw_lattice:{}'.format(list(map(lambda x:vocabs['lattice'].to_word(x),
-                                  list(datasets['train'][show_index]['lattice'])))))
+
+for i in range(0,100):
+    print('raw_lattice:{}'.format(list(map(lambda x:vocabs['lattice'].to_word(x),
+                                  list(datasets['train'][i]['lattice'])))))
 print('lex_s:{}'.format(list(datasets['train'][show_index]['lex_s'])))
 print('lex_e:{}'.format(list(datasets['train'][show_index]['lex_e'])))
 print('pos_s:{}'.format(list(datasets['train'][show_index]['pos_s'])))
 print('pos_e:{}'.format(list(datasets['train'][show_index]['pos_e'])))
 
-# exit(1208)
+
 
 for k, v in datasets.items():    
     if args.lattice:
-        v.set_input('lattice','bigrams','seq_len','target')
+        v.set_input('lattice','bigrams','seq_len','target') # 将filed_name的field 设置为input
         v.set_input('lex_num','pos_s','pos_e')
-        v.set_target('target','seq_len')
+        v.set_target('target','seq_len')   # 将field_names的field设置为target
         v.set_pad_val('lattice',vocabs['lattice'].padding_idx)
     else:
         v.set_input('chars','bigrams','seq_len','target')
         v.set_target('target', 'seq_len')
 
-
+# ============================================下面这部分像是对应模型的 Add & Norm 部分，但是没有体现Add啊 ？
 from utils import norm_static_embedding
 # print(embeddings['char'].embedding.weight[:10])
 if args.norm_embed>0:
@@ -380,6 +390,7 @@ if args.norm_lattice_embed>0:
     print('norm lattice embedding')
     for k,v in embeddings.items():
         norm_static_embedding(v,args.norm_embed)
+
 
 mode = {}
 mode['debug'] = args.debug
@@ -403,11 +414,16 @@ torch.backends.cudnn.benchmark = False
 
 fitlog.add_hyper(args)
     
-
+'''
+01.bert_embedding 有什么作用？
+02.和embedding 的区别是什么？
+'''
 if args.model == 'transformer':
     if args.lattice:
         if args.use_bert:
             # BertEmbedding in fastNLP
+            # 使用的embedding 模型的简称是 cn-wwm。这个信息可以在fastNLP 的官网中找到相关信息
+            # 但是很好奇，为什么这里是用 vocabs['lattice'] ? 而不是 vocabs['char']  ?
             bert_embedding = BertEmbedding(vocabs['lattice'],model_dir_or_name='cn-wwm',requires_grad=False,
                                            word_dropout=0.01)
         else:
@@ -416,6 +432,8 @@ if args.model == 'transformer':
         if args.only_bert: # 仅仅使用bert模型
             model = BERT_SeqLabel(bert_embedding,len(vocabs['label']),vocabs,args.after_bert)
         else: # 用的是bert+flat这个模型
+            # 在这里用了 embeddings 的信息，用它去构建一个实例
+            # 为什么选择 embeddings['lattice'] 和 embeddings['bigram'] 作为参数？
             model = Lattice_Transformer_SeqLabel(embeddings['lattice'], embeddings['bigram'], args.hidden, len(vocabs['label']),
                                          args.head, args.layer, args.use_abs_pos,args.use_rel_pos,
                                          args.learn_pos, args.add_pos,
@@ -457,8 +475,7 @@ if args.model == 'transformer':
                                      abs_pos_fusion_func=args.abs_pos_fusion_func,
                                      embed_dropout_pos=args.embed_dropout_pos
                                      )
-
-    # print(Transformer_SeqLabel.encoder.)
+    
 elif args.model =='lstm':
     model = LSTM_SeqLabel_True(embeddings['char'],embeddings['bigram'],embeddings['bigram'],args.hidden,
                                len(vocabs['label']),
@@ -492,7 +509,7 @@ loss = LossInForward()
 encoding_type = 'bmeso'
 if args.dataset == 'weibo':
     encoding_type = 'bio'
-if args.dataset == 'tianchi':
+if args.dataset == 'tianchi': # 根据不同的数据集，定义不同的标注方式
     encoding_type = 'bio'
 f1_metric = SpanFPreRecMetric(vocabs['label'],pred='pred',target='target',seq_len='seq_len',encoding_type=encoding_type)
 acc_metric = AccuracyMetric(pred='pred',target='target',seq_len='seq_len',)
@@ -592,7 +609,6 @@ class Unfreeze_Callback(Callback):
             self.bert_embedding.requires_grad = True
 
 
-
 callbacks = [
         evaluate_callback,   # 好奇evaluate_callback的值是
         lrschedule_callback,
@@ -620,7 +636,6 @@ class record_best_test_callback(Callback):
 print(torch.rand(size=[3,3],device=device))
 
 
-
 if args.status == 'train':        
     # 如果觉得dataset['train'] 较大，可以执行如下操作删除其 instance
     # for i in range(len(datasets['train'])-1,2,-1):
@@ -629,8 +644,12 @@ if args.status == 'train':
     '''
     上面这个数据集的格式，我将其写入到了一个文件中，文件地址是： V1/train_exam.txt
     '''
-    trainer = Trainer(datasets['train'],model,optimizer,loss,args.batch,
-                      n_epochs=args.epoch,
+    trainer = Trainer(datasets['train'],
+                    model,
+                    optimizer,
+                    loss,
+                    args.batch,
+                    n_epochs=args.epoch,
                       dev_data=datasets['dev'],
                       metrics=metrics,
                       device=device,

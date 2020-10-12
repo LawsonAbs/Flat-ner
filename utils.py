@@ -1,4 +1,5 @@
 import re
+from torch import embedding
 from torch.jit import annotations
 import torch.nn.functional as F
 import torch
@@ -455,7 +456,7 @@ def convertFile(readFileName,writeFileName):
     if os.path.exists(writeFileName): # 如果文件存在，则删除
         os.remove(writeFileName)
 
-    for i in range(900,1000): 
+    for i in range(300,400): 
         txtFilePath = readFileName + str(i) + ".txt"
         annFilePath = readFileName + str(i) + ".ann"
         with open(txtFilePath,'r') as f:
@@ -501,10 +502,75 @@ def readFile(fileName):
                 continue
             print(word)
 
+'''
+description: 将 list 写入到文件中
+param {type} 
+return {type} 
+'''
+def writeList2File(conte,fileName):
+    with open(fileName,'w') as f:
+        for row in conte:
+            row = str(row)            
+            row = row.replace('[', '').replace(']', '') # 替换掉左右括号
+            row = row.replace("'", '').replace(",", '') + '\n'  # 替换掉引号
+            f.write(row)  
+
+
+'''
+description:根据文件  yangjie_word_char_mix.txt   得到预训练词（这些词就是实体中的关键词）的embedding
+param {type} :
+entity: 所有的关键字集合
+filePath: 读入的文件地址
+outPath: 输出的文件地址
+return {type} 
+'''
+def getWordsEmbedding(annFilePath,embeddingFilePath,outPath):
+    # 得到entity
+    entity2Tag = {}  # 实体名字到实体类别的映射
+    """    
+    :return: 
+    """
+    fileNameList = os.listdir(annFilePath)
+    #  注意这里的if 写在了 生成表达式的后面
+    fileNameList = [name for name in fileNameList if name.endswith(".ann")]
+    # 构造文件名，传入到 上面那个函数中，获取 entity
+    for name in fileNameList:
+        fileRoute = annFilePath +'/' +name
+        # 读取文件，并生产entity
+        with open(fileRoute,encoding='utf8') as f:  # 打开文件
+            line = f.readline()
+            while line:
+                line = line.strip("\n")
+                row = re.split('[\t ]',line)
+                tag = row[1]  # entity Tag
+                entity = row[4]  # entity Name
+                if entity not in entity2Tag.keys(): # 如果不在字典中
+                    entity2Tag[entity] = tag
+                line = f.readline()
+    entities = list(entity2Tag.keys()) # 得到所有的词语名
+
+    # 得到embedding的值，然后将前面的词语替换成entity2Tag中的
+    with open(embeddingFilePath,'r') as f:
+        lines = f.readlines()
+        res = [] # 待写入文件的结果
+        for i in range(0,len(entities)): # 遍历所有的entity
+            entity = entities[i] 
+            line = lines[i+2] # 去掉前两个 
+            temp = [] # 当前的整个
+            splited = line.strip().split(' ')            
+            temp = splited[1:] # 第2个到最后一个
+            temp = [float(_) for _ in temp]           
+            # print(temp)            
+            temp.insert(0,entity) # 将单词插入其中
+            res.append(temp) # 写入结果集                
+    writeList2File(res,outPath)
 
 
 if __name__ == '__main__':
     readFileName = '/home/liushen/program/Flat-Lattice-Transformer/data/corpus/TianChiNER/train/'
-    writeFileName = "/home/liushen/program/Flat-Lattice-Transformer/data/corpus/TianChiNER/tianchi.test"
+    writeFileName = "/home/liushen/program/Flat-Lattice-Transformer/data/corpus/TianChiNER/tianchi.dev"
     convertFile(readFileName,writeFileName)
-    #readFile(readFileName)
+    # annFilePath = "/home/liushen/brat/data/train"
+    # embeddingFilePath = "data/pretrain/yangjie_word_char_mix.txt"
+    # outFilePath = "embedding.txt"
+    # getWordsEmbedding(annFilePath,embeddingFilePath,outFilePath)
